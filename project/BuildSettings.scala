@@ -1,14 +1,10 @@
+import sbt.Keys._
 import sbt._
-import Keys._
-
-import com.typesafe.sbt.SbtNativePackager
-import com.typesafe.sbt.SbtNativePackager._
 import spray.revolver.RevolverPlugin._
 
 object BuildSettings extends Build {
 
   val allenAiCommon = "org.allenai.common" %% "common-core" % "2014.06.10-0-SNAPSHOT"
-  val allenAiTestkit = "org.allenai.common" %% "common-testkit" % "2014.06.10-0-SNAPSHOT"
 
   val ari = "org.allenai.ari" %% "ari-interface" % "2014.06.10-0-SNAPSHOT"
   val ermineApi = "org.allenai.extraction" %% "extraction-api" % "2014.5.14-0-SNAPSHOT"
@@ -59,7 +55,6 @@ object BuildSettings extends Build {
 
   val globalBuildSettings =
   Revolver.settings ++
-  Publish.settings ++
   Seq(
     // Some systems (like laptops) seem to pick a bad default heap size.
     // Force something big enough that we don't crash.
