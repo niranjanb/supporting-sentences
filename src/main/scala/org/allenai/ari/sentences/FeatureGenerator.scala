@@ -1,5 +1,7 @@
 package org.allenai.ari.sentences
 
+import org.allenai.ari.solvers.utils.Tokenizer
+
 import java.io.PrintWriter
 
 import scala.io.Source
@@ -34,10 +36,9 @@ object FeatureGenerator extends App {
   }
 
   def overlap(src: String, tgt: String) = {
-    import org.allenai.ari.solvers.utils.Tokenizer._
-    val srcKeywords = toKeywords(src)
-    val tgtKeywords = toKeywords(tgt)
-    srcKeywords.intersect(tgtKeywords) / tgtKeywords.size
+    val srcKeywords = Tokenizer.toKeywords(src)
+    val tgtKeywords = Tokenizer.toKeywords(tgt)
+    srcKeywords.intersect(tgtKeywords).size / tgtKeywords.size
   }
 
   def features(questionSentence: QuestionSentence) = {
