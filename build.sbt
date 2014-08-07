@@ -13,6 +13,8 @@ scalaVersion := "2.10.3"
 lazy val root = Project(id = "supporting-sentences", base = file("."), settings = globalBuildSettings)
 
 libraryDependencies ++= Seq(
+  //
+  solvers,
   // Implement solver interface.
   ari,
   // Process incoming questions.

@@ -1,5 +1,7 @@
 package org.allenai.ari.sentences
 
+import java.io.PrintWriter
+
 import scala.io.Source
 
 /**
@@ -7,16 +9,15 @@ import scala.io.Source
  */
 case class QuestionSentence(qid: String, question: String, focus: String, url: String, sentence: String, annotation: Int)
 
-case class Instance(questionSentence: QuestionSentence, features: Map[String, Double])
+case class Instance(questionSentence: QuestionSentence, features: Map[String, Double]) {
+  override  def toString(): String = {
+    questionSentence.toString + "\t" + features.values.mkString("\t")
+  }
+}
 
 
 object FeatureGenerator extends App {
-   
-  def features(questionSentence: QuestionSentence) = {
-    var features = Map[String, Double]()
-    features += ("sentence-length" -> questionSentence.sentence.length.toDouble)
-    features
-  }
+
 
   //private val config = ConfigFactory.load()
   val inputFile = args(0)
@@ -32,8 +33,31 @@ object FeatureGenerator extends App {
       QuestionSentence(splits(0), splits(1), splits(2), splits(3), splits(4), splits(5).toInt)
   }
 
-  questionSentences.map {
+  def overlap(src: String, tgt: String) = {
+    import org.allenai.ari.solvers.utils.Tokenizer._
+    val srcKeywords = toKeywords(src)
+    val tgtKeywords = toKeywords(tgt)
+    srcKeywords.intersect(tgtKeywords) / tgtKeywords.size
+  }
+
+  def features(questionSentence: QuestionSentence) = {
+    var features = Map[String, Double]()
+    features += ("sentence-length" -> questionSentence.sentence.length.toDouble)
+    //add more features.
+    features += ("word-overlap" -> overlap(questionSentence.question, questionSentence.sentence))
+    features
+  }
+
+  val instances: Iterator[Instance] = questionSentences.map {
     questionSentence => Instance(questionSentence, features(questionSentence))
   }
+
+  val writer = new PrintWriter(outputFile)
+
+  instances.foreach{
+    instance =>
+      writer.println(instance.toString)
+  }
+  writer.close()
 
 }

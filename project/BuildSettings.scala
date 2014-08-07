@@ -4,6 +4,8 @@ import spray.revolver.RevolverPlugin._
 
 object BuildSettings extends Build {
 
+  val solvers = "org.allenai.solvers" %% "solvers" % "0.1.1-SNAPSHOT"
+
   val allenAiCommon = "org.allenai.common" %% "common-core" % "2014.06.10-0-SNAPSHOT"
 
   val ari = "org.allenai.ari" %% "ari-interface" % "2014.06.10-0-SNAPSHOT"
