@@ -1,26 +1,21 @@
 package org.allenai.ari.sentences
 
-import org.allenai.common.Logging
-import org.allenai.entailment.interface.{ Entailment, IsaResult }
-import org.allenai.ari.solvers.inference.matching.{ EntailmentService, EntailmentWrapper }
-import org.allenai.ari.solvers.utils.Tokenizer
-
 import java.io.PrintWriter
 import java.util.Random
 
-import scala.io.Source
-
-import weka.core.converters.ConverterUtils.DataSource
-import weka.core.Instances
-import weka.classifiers.Classifier
-import weka.classifiers.Evaluation
+import org.allenai.ari.solvers.inference.matching.{EntailmentService, EntailmentWrapper}
+import org.allenai.ari.solvers.utils.Tokenizer
+import org.allenai.common.Logging
+import weka.classifiers.{Classifier, Evaluation}
 import weka.classifiers.bayes._
 import weka.classifiers.functions._
 import weka.classifiers.meta._
-import weka.classifiers.misc._
 import weka.classifiers.rules._
 import weka.classifiers.trees._
-import weka.classifiers.functions.supportVector._
+import weka.core.Instances
+import weka.core.converters.ConverterUtils.DataSource
+
+import scala.io.Source
 
 case class QuestionSentence(qid: String, question: String, focus: String, url: String, sentence: String, annotation: Int)
 
@@ -72,13 +67,13 @@ object SentenceClassifier extends App with Logging {
   logger.info("Done!")
   System.exit(0)
 
-  def overlap(src: String, tgt: String, asFrac: Boolean) = {
+  def overlap(src: String, tgt: String, asFrac: Boolean): Double = {
     val srcKeywords = Tokenizer.toKeywords(src)
     val tgtKeywords = Tokenizer.toKeywords(tgt)
     if (asFrac)
       Math.round(srcKeywords.intersect(tgtKeywords).size / tgtKeywords.size.toDouble * 1000000.0) / 1000000.0
     else
-      srcKeywords.intersect(tgtKeywords).size
+      srcKeywords.intersect(tgtKeywords).size.toDouble
   }
 
   def features(questionSentence: QuestionSentence) = {
