@@ -4,8 +4,8 @@ import org.allenai.ari.solvers.utils.Tokenizer
 import scala.io.Source
 
 case class Question(text: String, focus: String)
-object QueryExpansion {
 
+object QueryExpansion {
 
   def main(args: Array[String]) = {
     val questionSentences =
