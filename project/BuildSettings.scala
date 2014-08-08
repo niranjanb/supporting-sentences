@@ -4,6 +4,8 @@ import spray.revolver.RevolverPlugin._
 
 object BuildSettings extends Build {
 
+  val weka = "nz.ac.waikato.cms.weka" % "weka-stable" % "3.6.6"
+
   val solvers = "org.allenai.ari.solvers" %% "solvers-inference" % "0.0.2-SNAPSHOT"
 
   val allenAiCommon = "org.allenai.common" %% "common-core" % "2014.06.10-0-SNAPSHOT"

@@ -15,6 +15,7 @@ lazy val root = Project(id = "supporting-sentences", base = file("."), settings 
 libraryDependencies ++= Seq(
   //
   solvers,
+  weka,
   // Implement solver interface.
   ari,
   // Process incoming questions.
