@@ -186,7 +186,16 @@ object SentenceClassifier extends App with Logging {
         classifier.buildClassifier(dataTrain)
         logger.info(s"WEKA: validating the classifier on $arffValidationOpt")
         eval.evaluateModel(classifier, dataValidation)
-        logger.info(s"WEKA: extracting distribution for each validation instance")
+
+        logger.info("WARNING: duplicating the evaluation for now")
+        logger.info(s"WEKA: extracting class probability distribution for each validation instance")
+        val classProbabilities = (0 to dataValidation.numInstances-1).map { 
+          i => classifier.distributionForInstance(dataValidation.instance(i))
+        }
+        val confidences = classProbabilities.map {
+          distr => distr(0)
+        }
+        logger.info(confidences.mkString("\n"))
       case _ =>
         val nfolds: Int = 10
         logger.info(s"WEKA: training AND ${nfolds}-fold cross validating the classifier on $arffTrain")
