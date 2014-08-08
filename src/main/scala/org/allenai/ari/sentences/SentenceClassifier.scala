@@ -35,6 +35,7 @@ object SentenceClassifier extends App with Logging {
   val configArffValidationOpt = configValidationFileOpt map {
     configValidationFile => "validation.arff"
   }
+  val configValidationFileWithClassProbabilities = "validationWithClassProbs.tsv"
   val configEntailmentUrl = "http://entailment.dev.allenai.org:8191/api/entails"
 
   val teService: EntailmentService = {
@@ -55,7 +56,7 @@ object SentenceClassifier extends App with Logging {
   val questionSentencesValidationOpt = configValidationFileOpt map {
     configValidationFile =>
       logger.info(s"Extracting validation question+sentences from $configValidationFile")
-      QuestionSentence.fromTrainingFile(configValidationFile)
+      QuestionSentence.fromFileWithSids(configValidationFile)
   }
 
   val featureMapValidationOpt = questionSentencesValidationOpt map {
@@ -74,7 +75,19 @@ object SentenceClassifier extends App with Logging {
   
 
   logger.info("Invoking the classifier")
-  invokeClassifier(configClassifierName, configArffTrain, configArffValidationOpt)
+  val classProbabilitiesOpt = invokeClassifier(configClassifierName, configArffTrain, configArffValidationOpt, questionSentencesValidationOpt)
+
+  classProbabilitiesOpt map {
+    classProbabilities =>
+      logger.info(s"Writing labeled validation file to $configValidationFileWithClassProbabilities")
+      val writer = new PrintWriter(configValidationFileWithClassProbabilities, "utf-8")
+      (0 to classProbabilities.size-1).map {
+        i =>
+          val confidence = classProbabilities(i).apply(0)
+          writer.println(questionSentencesValidationOpt.get.apply(i).toString + s"\t$confidence")
+      }
+      writer.close()
+  }
 
   logger.info("Done!")
   System.exit(0)
@@ -122,7 +135,7 @@ object SentenceClassifier extends App with Logging {
     writer.close()
   }
 
-  def invokeClassifier(classifierName: String, arffTrain: String, arffValidationOpt: Option[String]) = {
+  def invokeClassifier(classifierName: String, arffTrain: String, arffValidationOpt: Option[String], questionSentencesValidationOpt: Option[List[QuestionSentence]]) = {
     logger.info(s"WEKA: reading training data from $arffTrain")
     val sourceTrain: DataSource = new DataSource(arffTrain)
     val dataTrain: Instances = sourceTrain.getDataSet
@@ -159,7 +172,7 @@ object SentenceClassifier extends App with Logging {
 
     val eval: Evaluation = new Evaluation(dataTrain)
 
-    dataValidationOpt match {
+    val classProbabilitiesOpt: Option[Seq[Array[Double]]] = dataValidationOpt match {
       case Some(dataValidation: Instances) =>
         logger.info(s"WEKA: training the classifier on $arffTrain")
         classifier.buildClassifier(dataTrain)
@@ -171,17 +184,17 @@ object SentenceClassifier extends App with Logging {
         val classProbabilities = (0 to dataValidation.numInstances-1).map { 
           i => classifier.distributionForInstance(dataValidation.instance(i))
         }
-        val confidences = classProbabilities.map {
-          distr => distr(0)
-        }
-        logger.info(confidences.mkString("\n"))
+        Option(classProbabilities)
       case _ =>
         val nfolds: Int = 10
         logger.info(s"WEKA: training AND ${nfolds}-fold cross validating the classifier on $arffTrain")
         val random: Random = new Random(42)
         eval.crossValidateModel(classifier, dataTrain, 10, random)
+        Option(null)
     }
     logger.info(eval.toSummaryString("\n======== RESULTS ========\n", false))
     //logger.info(s"\nf-measure = ${eval.fMeasure(0).toString}")
+    
+    classProbabilitiesOpt
   }
 }
