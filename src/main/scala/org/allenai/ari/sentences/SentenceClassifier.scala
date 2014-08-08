@@ -17,7 +17,7 @@ import weka.core.converters.ConverterUtils.DataSource
 
 import scala.io.Source
 
-case class QuestionSentence(qid: String, question: String, focus: String, url: String, sentence: String, annotationOpt: Option[Int])
+
 
 object SentenceClassifier extends App with Logging {
 
@@ -43,17 +43,7 @@ object SentenceClassifier extends App with Logging {
   }
   
   logger.info(s"Extracting training question+sentences from $configTrainingFile")
-  val questionSentencesTrain = Source.fromFile(configTrainingFile).getLines().drop(1).map {
-    line =>
-      //Assume line is of the following form:
-      //Q ID    T/F question    Focus   URL Sentence    Supporting (0-2)?   Necessary rewrite
-      //Example
-      //44  Is it true that sleet, rain, snow, and hail are forms of precipitation?     precipitation   http://ww2010.atmos.uiuc.edu/%28Gh%29/guides/mtr/cld/prcp/home.rxml Precipitation occurs in a variety of forms; hail, rain, freezing rain, sleet or snow.   2
-      val splits = line.split("\t")
-      val annotationOpt = if (splits.size > 5) Some(splits(5).toInt) else None  
-      QuestionSentence(splits(0), splits(1), splits(2), splits(3), splits(4), annotationOpt)
-  }.toList
-
+  val questionSentencesTrain = QuestionSentence.fromTrainingFile(configTrainingFile)
   logger.info("Computing training sentence features")
   val featureMapTrain = questionSentencesTrain.map {
     questionSentence => (questionSentence, features(questionSentence))
@@ -65,12 +55,7 @@ object SentenceClassifier extends App with Logging {
   val questionSentencesValidationOpt = configValidationFileOpt map {
     configValidationFile =>
       logger.info(s"Extracting validation question+sentences from $configValidationFile")
-      Source.fromFile(configTrainingFile).getLines().drop(1).map {
-        line =>
-          val splits = line.split("\t")
-          val annotationOpt = if (splits.size > 5) Some(splits(5).toInt) else None  
-        QuestionSentence(splits(0), splits(1), splits(2), splits(3), splits(4), annotationOpt)
-      }.toList
+      QuestionSentence.fromTrainingFile(configValidationFile)
   }
 
   val featureMapValidationOpt = questionSentencesValidationOpt map {
@@ -94,23 +79,17 @@ object SentenceClassifier extends App with Logging {
   logger.info("Done!")
   System.exit(0)
 
-  def overlap(src: String, tgt: String, asFrac: Boolean): Double = {
-    val srcKeywords = Tokenizer.toKeywords(src)
-    val tgtKeywords = Tokenizer.toKeywords(tgt)
-    if (asFrac)
-      Math.round(srcKeywords.intersect(tgtKeywords).size / tgtKeywords.size.toDouble * 1000000.0) / 1000000.0
-    else
-      srcKeywords.intersect(tgtKeywords).size.toDouble
-  }
+
 
   def features(questionSentence: QuestionSentence) = {
+    import SimilarityMeasures._
     var features = Seq[Double]()
     // number of words in the sentence
     features :+= Math.log(questionSentence.sentence.split("\\s+").size.toDouble)
     // number of question words that overlap with the sentence
-    features :+= overlap(questionSentence.sentence, questionSentence.question, false)
+    features :+= ashish_overlap(questionSentence.sentence, questionSentence.question, false)
     // fraction of question words that overlap with the sentence
-    features :+= overlap(questionSentence.sentence, questionSentence.question, true)
+    features :+= ashish_overlap(questionSentence.sentence, questionSentence.question, true)
     // sentence and question entailment
     features :+= (teService(questionSentence.sentence, questionSentence.question) map (_.confidence)).getOrElse(0.0)         
     // sentence and focus entailment
