@@ -1,6 +1,6 @@
 package org.allenai.ari.sentences
 
-import java.io.PrintWriter
+import java.io.{File, PrintWriter}
 import java.util.Random
 
 import org.allenai.ari.solvers.inference.matching.{EntailmentService, EntailmentWrapper}
@@ -16,26 +16,19 @@ import weka.core.Instances
 import weka.core.converters.ConverterUtils.DataSource
 
 import scala.io.Source
-
+import scala.collection.immutable.IndexedSeq
 
 
 object SentenceClassifier extends App with Logging {
-
-  //private val config = ConfigFactory.load()
   logger.info("Parsing commandline arguments")
-  assert(args.size >= 2 && args.size <= 3)
+  assert(args.size == 4, " classifier trainingfile inputdir outputdir needed")
   val configClassifierName = args(0)
   val configTrainingFile = args(1)
-  val configValidationFileOpt = args.size match {
-    case 3 => Option(args(2))
-    case _ => Option(null)
-  }
+  val inputDirectory = args(2)
+  val outputDirectory = args(3)
+  val arffDir = "arff"
+  val configArffTrain = arffDir + File.separator + "train.arff"
 
-  val configArffTrain = "train.arff"
-  val configArffValidationOpt = configValidationFileOpt map {
-    configValidationFile => "validation.arff"
-  }
-  val configValidationFileWithClassProbabilities = "validationWithClassProbs.tsv"
   val configEntailmentUrl = "http://entailment.dev.allenai.org:8191/api/entails"
 
   val teService: EntailmentService = {
@@ -53,44 +46,64 @@ object SentenceClassifier extends App with Logging {
   logger.info(s"Writing training ARFF to file $configArffTrain")
   toARFF(questionSentencesTrain, featureMapTrain, configArffTrain)
   
-  val questionSentencesValidationOpt = configValidationFileOpt map {
-    configValidationFile =>
-      logger.info(s"Extracting validation question+sentences from $configValidationFile")
-      QuestionSentence.fromFileWithSids(configValidationFile)
-  }
+  val classifier: Classifier = buildClassifier(configClassifierName, configArffTrain)
 
-  val featureMapValidationOpt = questionSentencesValidationOpt map {
-    questionSentencesValidation =>
-      logger.info("Computing validation sentence features")
-      questionSentencesValidation.map {
-        questionSentence => (questionSentence, features(questionSentence))
-      }.toMap
-  }
+  classify(classifier, inputDirectory, outputDirectory)
 
-  questionSentencesValidationOpt map {
-    questionSentencesValidation =>
-      logger.info(s"Writing training ARFF to file $configArffTrain")
-      toARFF(questionSentencesValidation, featureMapValidationOpt.get, configArffValidationOpt.get)
-  }
-  
-
-  logger.info("Invoking the classifier")
-  val classProbabilitiesOpt = invokeClassifier(configClassifierName, configArffTrain, configArffValidationOpt, questionSentencesValidationOpt)
-
-  classProbabilitiesOpt map {
-    classProbabilities =>
-      logger.info(s"Writing labeled validation file to $configValidationFileWithClassProbabilities")
-      val writer = new PrintWriter(configValidationFileWithClassProbabilities, "utf-8")
-      (0 to classProbabilities.size-1).map {
-        i =>
-          val confidence = classProbabilities(i).apply(0)
-          writer.println(questionSentencesValidationOpt.get.apply(i).toString + s"\t$confidence")
-      }
-      writer.close()
-  }
-
-  logger.info("Done!")
   System.exit(0)
+
+
+
+  def classify(classifier: Classifier,
+               testInstances: Instances): Seq[Double] = {
+    logger.info(s"WEKA: extracting class probability distribution for each test instance")
+    (0 to testInstances.numInstances-1).map {i =>
+      classifier.distributionForInstance(testInstances.instance(i))(0)
+    }
+  }
+
+  def toInstances(file: File, arffDir: String): (Instances, Seq[QuestionSentence]) = {
+    logger.info(s"Extracting test question+sentences from $file")
+    val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSids(file.getAbsolutePath)
+    val featureMap: Map[QuestionSentence, Seq[Double]] = (questionSentences map {
+      questionSentence =>
+        (questionSentence, features(questionSentence))
+    }).toMap
+    val arffFile = arffDir + File.separator + file.getName + ".arff"
+    toARFF(questionSentences, featureMap, arffFile)
+    logger.info(s"WEKA: reading test data from $arffFile")
+    val sourceValidation: DataSource = new DataSource(arffFile)
+    (sourceValidation.getDataSet, questionSentences)
+  }
+
+  def classify(classifier: Classifier, inputDirectory: String, outputDirectory: String): Unit = {
+    val files = {
+      new File(inputDirectory).listFiles().filter(_.getName.endsWith(".txt"))
+    }
+
+    files.take(2).foreach {
+      file =>
+        try {
+          logger.info(s"Processing ${file.getName()}")
+          val outputFile = outputDirectory + File.separator + file.getName
+          val writer = new PrintWriter(outputFile, "utf-8")
+          writer.println(QuestionSentence.header)
+          toInstances(file, arffDir) match {
+            case (testInstances, testQuestionSentences) =>
+              val classProbabilities = classify(classifier, testInstances)
+              logger.info(s"Class probabilities ${classProbabilities.size}, instances ${testInstances.numInstances()} , and testQuestionSentences ${testQuestionSentences.size}")
+              (testQuestionSentences zip classProbabilities) foreach {
+                x => writer.println(s"${x._1.toString}\t${x._2}%.4f")
+              }
+            case _ =>
+              logger.info("")
+          }
+          writer.close()
+        } catch {
+          case e: Exception => println(s"Caught exception processing input file ${file.getName()}")
+        }
+    }
+  }
 
 
 
@@ -135,6 +148,33 @@ object SentenceClassifier extends App with Logging {
     writer.close()
   }
 
+  def buildClassifier(classifierName: String, arffTrain: String) = {
+    logger.info(s"WEKA: reading training data from $arffTrain")
+    val sourceTrain: DataSource = new DataSource(arffTrain)
+    val dataTrain: Instances = sourceTrain.getDataSet
+    if (dataTrain.classIndex == -1)
+      dataTrain.setClassIndex(dataTrain.numAttributes - 1)
+    logger.info(s"WEKA: creating classifier $classifierName")
+    val classifier: Classifier = classifierName match {
+      case "J48" => new J48()
+      case "RandomForest" => new RandomForest()
+      case "DecisionTable" => new DecisionTable()
+      case "REPTree" => new REPTree()
+      case "Logistic" => new Logistic()
+      case "SMO" => new SMO()
+      case "NaiveBayes" => new NaiveBayes()
+      case "JRip" => new JRip()
+      //case "IBk" => new IBk()
+      case "RBFNetwork" => new RBFNetwork()
+      case "RotationForest" => new RotationForest()
+      case "ConjunctiveRule" => new ConjunctiveRule()
+      case "RandomCommittee" => new RandomCommittee()
+      case "LibSVM" => new LibSVM()
+    }
+    logger.info(s"WEKA: training the classifier on $arffTrain")
+    classifier.buildClassifier(dataTrain)
+    classifier
+  }
   def invokeClassifier(classifierName: String, arffTrain: String, arffValidationOpt: Option[String], questionSentencesValidationOpt: Option[List[QuestionSentence]]) = {
     logger.info(s"WEKA: reading training data from $arffTrain")
     val sourceTrain: DataSource = new DataSource(arffTrain)

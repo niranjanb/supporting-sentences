@@ -9,7 +9,7 @@ object SentenceScorer extends App with Logging {
     new File(args(0)).listFiles().filter(_.getName.endsWith(".txt"))
   }
 
-  files.take(2).foreach {
+  files.drop(50).take(50).foreach {
     file =>
       try {
         logger.info(s"Processing ${file.getName()}")
