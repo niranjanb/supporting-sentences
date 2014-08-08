@@ -1,7 +1,9 @@
 package org.allenai.ari.sentences
 
-import org.allenai.ari.solvers.utils.Tokenizer
 import org.allenai.common.Logging
+import org.allenai.entailment.interface.{ Entailment, IsaResult }
+import org.allenai.ari.solvers.inference.matching.{ EntailmentService, EntailmentWrapper }
+import org.allenai.ari.solvers.utils.Tokenizer
 
 import java.io.PrintWriter
 import java.util.Random
@@ -38,6 +40,7 @@ object SentenceClassifier extends App with Logging {
   val configArffValidationOpt = configValidationFileOpt map {
     configValidationFile => "validation.arff"
   }
+  val configEntailmentUrl = "http://entailment.dev.allenai.org:8191/api/entails"
 
   logger.info(s"Extracting question+sentences from $configTrainingFile")
   val questionSentences = Source.fromFile(configTrainingFile).getLines().drop(1).map {
@@ -50,9 +53,14 @@ object SentenceClassifier extends App with Logging {
       QuestionSentence(splits(0), splits(1), splits(2), splits(3), splits(4), splits(5).toInt)
   }.toList
 
+  val teService: EntailmentService = {
+    val wrapper = new EntailmentWrapper(configEntailmentUrl)
+    wrapper.PredefinedEntails orElse wrapper.CachedEntails
+  }
+  
   logger.info("Computing sentence features")
   val featureMap = questionSentences.map {
-    questionSentence => (questionSentence -> features(questionSentence))
+    questionSentence => (questionSentence, features(questionSentence))
   }.toMap
 
   logger.info(s"Writing output ARFF to file $configArffTrain")
@@ -62,6 +70,7 @@ object SentenceClassifier extends App with Logging {
   invokeClassifier(configClassifierName, configArffTrain, configArffValidationOpt)
 
   logger.info("Done!")
+  System.exit(0)
 
   def overlap(src: String, tgt: String, asFrac: Boolean) = {
     val srcKeywords = Tokenizer.toKeywords(src)
@@ -73,13 +82,18 @@ object SentenceClassifier extends App with Logging {
   }
 
   def features(questionSentence: QuestionSentence) = {
-    var features = Map[String, Double]()
+    var features = Seq[Double]()
     // number of words in the sentence
-    features += ("sentence-length" -> questionSentence.sentence.split("\\s+").size)
-    // number of sentence words that overlap with the question
-    features += ("word-overlap-num" -> overlap(questionSentence.question, questionSentence.sentence, false))
-    // fraction of sentence words that overlap with the question
-    features += ("word-overlap-frac" -> overlap(questionSentence.question, questionSentence.sentence, true))
+    features :+= Math.log(questionSentence.sentence.split("\\s+").size.toDouble)
+    // number of question words that overlap with the sentence
+    features :+= overlap(questionSentence.sentence, questionSentence.question, false)
+    // fraction of question words that overlap with the sentence
+    features :+= overlap(questionSentence.sentence, questionSentence.question, true)
+    // sentence and question entailment
+    features :+= (teService(questionSentence.sentence, questionSentence.question) map (_.confidence)).getOrElse(0.0)         
+    // sentence and focus entailment
+    features :+= (teService(questionSentence.sentence, questionSentence.focus) map (_.confidence)).getOrElse(0.0)         
+    
     features
   }
 
@@ -88,15 +102,17 @@ object SentenceClassifier extends App with Logging {
     // add ARFF header
     writer.println("@relation SENTENCE_SELECTOR")
     writer.println("  @attribute sentence-length       numeric         % length of the sentence")
-    writer.println("  @attribute word-overlap-num      numeric         % number of sentence words that overlap the question")
-    writer.println("  @attribute word-overlap-frac     numeric         % fractino of sentence words that overlap the question")
+    writer.println("  @attribute word-overlap-num      numeric         % number of question words that overlap the sentence")
+    writer.println("  @attribute word-overlap-frac     numeric         % fraction of question words that overlap the sentence")
+    writer.println("  @attribute question-ent-wordnet  numeric         % wordnet entailment for entire question")
+    writer.println("  @attribute focus-ent-wordnet     numeric         % wordnet entailment for focus")
     writer.println("  @attribute class                 {true,false}    % BINARY LABEL: whether the sentence supports the question")
     writer.println("")
     // add ARFF data
     writer.println("@data")
     questionSentences.foreach {
       questionSentence =>
-        writer.println(featureMap(questionSentence).values.mkString(",") + "," + (questionSentence.annotation > 0))
+        writer.println(featureMap(questionSentence).mkString(",") + "," + (questionSentence.annotation > 0))
     }
     writer.close()
   }
