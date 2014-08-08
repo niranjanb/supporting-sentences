@@ -3,11 +3,12 @@ package org.allenai.ari.sentences
 import scala.io.Source
 
 case class QuestionSentence(qid: String, question: String, focus: String, sid: Option[String], url: String, sentence: String, annotationOpt: Option[Int]) {
-
-  override def toString() = s"$qid\t$question\t$focus\t$url\t$sentence\t$annotationOpt"
+  override def toString() = s"$qid\t$question\t$focus\t$sid\t$url\t$sentence\t$annotationOpt"
 }
 
 object QuestionSentence {
+
+  def header = "qid\tquestion\tfocus\tsid\turl\tsentence\tannotationOpt"
 
   def fromTrainingFile(file: String) = {
     Source.fromFile(file).getLines().drop(1).map {

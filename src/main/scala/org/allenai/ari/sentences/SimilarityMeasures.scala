@@ -75,7 +75,7 @@ object SimilarityMeasures {
 
 
   def wordnetEntailment(text: String, hypothesis: String) =
-    wordnetEntailmentService(text, hypothesis)
+    wordnetEntailmentService(text, hypothesis) map { _.confidence } getOrElse 0d
 
 
 }
