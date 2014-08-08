@@ -10,7 +10,6 @@ object QuestionKeywordsExtractor {
   def keywords(string: String) = Tokenizer.toKeywords(string)
 
 
-
   def main(args: Array[String]) = {
 
   }
