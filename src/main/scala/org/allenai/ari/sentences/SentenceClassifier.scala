@@ -17,7 +17,7 @@ import weka.core.converters.ConverterUtils.DataSource
 
 import scala.io.Source
 
-case class QuestionSentence(qid: String, question: String, focus: String, url: String, sentence: String, annotation: Int)
+case class QuestionSentence(qid: String, question: String, focus: String, url: String, sentence: String, annotationOpt: Option[Int])
 
 object SentenceClassifier extends App with Logging {
 
@@ -37,29 +37,56 @@ object SentenceClassifier extends App with Logging {
   }
   val configEntailmentUrl = "http://entailment.dev.allenai.org:8191/api/entails"
 
-  logger.info(s"Extracting question+sentences from $configTrainingFile")
-  val questionSentences = Source.fromFile(configTrainingFile).getLines().drop(1).map {
-    line =>
-      //Assume line is of the following form:
-      //Q ID	T/F question	Focus	URL	Sentence	Supporting (0-2)?	Necessary rewrite
-      //Example
-      //44	Is it true that sleet, rain, snow, and hail are forms of precipitation? 	precipitation	http://ww2010.atmos.uiuc.edu/%28Gh%29/guides/mtr/cld/prcp/home.rxml	Precipitation occurs in a variety of forms; hail, rain, freezing rain, sleet or snow.	2
-      val splits = line.split("\t")
-      QuestionSentence(splits(0), splits(1), splits(2), splits(3), splits(4), splits(5).toInt)
-  }.toList
-
   val teService: EntailmentService = {
     val wrapper = new EntailmentWrapper(configEntailmentUrl)
     wrapper.PredefinedEntails orElse wrapper.CachedEntails
   }
   
-  logger.info("Computing sentence features")
-  val featureMap = questionSentences.map {
+  logger.info(s"Extracting training question+sentences from $configTrainingFile")
+  val questionSentencesTrain = Source.fromFile(configTrainingFile).getLines().drop(1).map {
+    line =>
+      //Assume line is of the following form:
+      //Q ID    T/F question    Focus   URL Sentence    Supporting (0-2)?   Necessary rewrite
+      //Example
+      //44  Is it true that sleet, rain, snow, and hail are forms of precipitation?     precipitation   http://ww2010.atmos.uiuc.edu/%28Gh%29/guides/mtr/cld/prcp/home.rxml Precipitation occurs in a variety of forms; hail, rain, freezing rain, sleet or snow.   2
+      val splits = line.split("\t")
+      val annotationOpt = if (splits.size > 5) Some(splits(5).toInt) else None  
+      QuestionSentence(splits(0), splits(1), splits(2), splits(3), splits(4), annotationOpt)
+  }.toList
+
+  logger.info("Computing training sentence features")
+  val featureMapTrain = questionSentencesTrain.map {
     questionSentence => (questionSentence, features(questionSentence))
   }.toMap
 
-  logger.info(s"Writing output ARFF to file $configArffTrain")
-  toARFF(configArffTrain)
+  logger.info(s"Writing training ARFF to file $configArffTrain")
+  toARFF(questionSentencesTrain, featureMapTrain, configArffTrain)
+  
+  val questionSentencesValidationOpt = configValidationFileOpt map {
+    configValidationFile =>
+      logger.info(s"Extracting validation question+sentences from $configValidationFile")
+      Source.fromFile(configTrainingFile).getLines().drop(1).map {
+        line =>
+          val splits = line.split("\t")
+          val annotationOpt = if (splits.size > 5) Some(splits(5).toInt) else None  
+        QuestionSentence(splits(0), splits(1), splits(2), splits(3), splits(4), annotationOpt)
+      }.toList
+  }
+
+  val featureMapValidationOpt = questionSentencesValidationOpt map {
+    questionSentencesValidation =>
+      logger.info("Computing validation sentence features")
+      questionSentencesValidation.map {
+        questionSentence => (questionSentence, features(questionSentence))
+      }.toMap
+  }
+
+  questionSentencesValidationOpt map {
+    questionSentencesValidation =>
+      logger.info(s"Writing training ARFF to file $configArffTrain")
+      toARFF(questionSentencesValidation, featureMapValidationOpt.get, configArffValidationOpt.get)
+  }
+  
 
   logger.info("Invoking the classifier")
   invokeClassifier(configClassifierName, configArffTrain, configArffValidationOpt)
@@ -92,7 +119,7 @@ object SentenceClassifier extends App with Logging {
     features
   }
 
-  def toARFF(arffFile: String) = {
+  def toARFF(questionSentences: List[QuestionSentence], featureMap: Map[QuestionSentence, Seq[Double]], arffFile: String) = {
     val writer = new PrintWriter(arffFile)
     // add ARFF header
     writer.println("@relation SENTENCE_SELECTOR")
@@ -107,7 +134,11 @@ object SentenceClassifier extends App with Logging {
     writer.println("@data")
     questionSentences.foreach {
       questionSentence =>
-        writer.println(featureMap(questionSentence).mkString(",") + "," + (questionSentence.annotation > 0))
+        val annotation = questionSentence.annotationOpt match {
+          case Some(label: Int) => label > 0
+          case None => "?"
+        }
+        writer.println(featureMap(questionSentence).mkString(",") + "," + annotation)
     }
     writer.close()
   }
@@ -155,6 +186,7 @@ object SentenceClassifier extends App with Logging {
         classifier.buildClassifier(dataTrain)
         logger.info(s"WEKA: validating the classifier on $arffValidationOpt")
         eval.evaluateModel(classifier, dataValidation)
+        logger.info(s"WEKA: extracting distribution for each validation instance")
       case _ =>
         val nfolds: Int = 10
         logger.info(s"WEKA: training AND ${nfolds}-fold cross validating the classifier on $arffTrain")
