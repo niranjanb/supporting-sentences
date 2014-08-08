@@ -9,10 +9,10 @@ object QueryExpansion {
 
   def main(args: Array[String]) = {
     val questionSentences =
-    Source.fromFile(args(0)).getLines().map {
-      line =>
+      Source.fromFile(args(0)).getLines().map {
+        line =>
 
-    }
+      }
   }
 
   def expandQuery(question: String, focus: String, topRankedSentences: Seq[(String, Double)]) = {
@@ -21,7 +21,7 @@ object QueryExpansion {
     val questionKeywords = toKeywords(question).toSet
     var frequencies = Map[String, Double]()
     topRankedSentences.foreach {
-      case (sentence: String, score: Double)  =>
+      case (sentence: String, score: Double) =>
         val keywords = toKeywords(sentence).toSet
         keywords.filter { !questionKeywords.contains(_) } foreach {
           keyword =>

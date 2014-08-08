@@ -13,7 +13,6 @@ import org.allenai.ari.models.AriException
 
 class FerretWrapper(ermineUrl: String) extends Logging {
 
-
   /** Query Ermine. Return raw response from Ermine.
     */
   private def queryErmine(text: String): String = {
@@ -40,7 +39,7 @@ class FerretWrapper(ermineUrl: String) extends Logging {
 
 }
 
-object FerretWrapper extends App{
+object FerretWrapper extends App {
   val ferret = new FerretWrapper("http://ermine.dev.allenai.org:8080/pipeline/ferret-text")
   val response = ferret.queryErmine("Inactivity causes health issues and also a lack of sleep, excessive alcohol consumption, and neglect of oral hygiene")
   println(s"response $response")
