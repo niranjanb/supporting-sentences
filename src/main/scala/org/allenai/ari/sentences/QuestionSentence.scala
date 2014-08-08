@@ -3,15 +3,15 @@ package org.allenai.ari.sentences
 import scala.io.Source
 
 case class QuestionSentence(qid: String, question: String, focus: String, sid: Option[String], url: String, sentence: String, annotationOpt: Option[Int]) {
-  override def toString() = s"$qid\t$question\t$focus\t$sid\t$url\t$sentence\t$annotationOpt"
+  override def toString() = s"$qid\t$question\t$focus\t$sid\t$url\t$sentence\t${annotationOpt.getOrElse("?")}"
 }
 
 object QuestionSentence {
 
   def header = "qid\tquestion\tfocus\tsid\turl\tsentence\tannotationOpt"
 
-  def fromTrainingFile(file: String) = {
-    Source.fromFile(file).getLines().drop(1).map {
+  def fromTrainingFile(file: String, headerLinesToDrop: Int) = {
+    Source.fromFile(file).getLines().drop(headerLinesToDrop).map {
       line =>
         //Assume line is of the following form:
         //Q ID    T/F question    Focus   URL Sentence    Supporting (0-2)?   Necessary rewrite
@@ -22,8 +22,9 @@ object QuestionSentence {
         QuestionSentence(splits(0), splits(1), splits(2), None, splits(3), splits(4), annotationOpt)
     }.toList
   }
-  def fromFileWithSids(file: String) = {
-    Source.fromFile(file).getLines().drop(1).map {
+
+  def fromFileWithSids(file: String, headerLinesToDrop: Int) = {
+    Source.fromFile(file).getLines().drop(headerLinesToDrop).map {
       line =>
         //Assume line is of the following form:
         //Q ID    T/F question    Focus   URL Sentence    Supporting (0-2)?   Necessary rewrite
@@ -35,4 +36,12 @@ object QuestionSentence {
     }.toList
   }
 
+  def fromFileWithSidsLASTMINUTE(file: String, headerLinesToDrop: Int) = {
+    Source.fromFile(file).getLines().drop(headerLinesToDrop).take(20).map {
+      line =>
+        val splits = line.split("\t")
+        //println(splits.mkString("\n"))
+        QuestionSentence(splits(0), splits(1), splits(2), None, splits(9), splits(4), Some(splits(3).toInt))
+    }.toList
+  }
 }

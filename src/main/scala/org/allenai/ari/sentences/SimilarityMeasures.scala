@@ -1,28 +1,19 @@
 package org.allenai.ari.sentences
 
-import java.io.{InputStream, File}
+import java.io.{ InputStream, File }
 import scala.io.Source
 import org.allenai.common.Resource
-import org.allenai.ari.solvers.inference.matching.{EntailmentWrapper, EntailmentService}
+import org.allenai.ari.solvers.inference.matching.{ EntailmentWrapper, EntailmentService }
 import org.allenai.ari.solvers.utils.Tokenizer
 
 object SimilarityMeasures {
 
-  def ashish_overlap(src: String, tgt: String, asFrac: Boolean): Double = {
-    val srcKeywords = Tokenizer.toKeywords(src)
-    val tgtKeywords = Tokenizer.toKeywords(tgt)
-    if (asFrac)
-      Math.round(srcKeywords.intersect(tgtKeywords).size / tgtKeywords.size.toDouble * 1000000.0) / 1000000.0
-    else
-      srcKeywords.intersect(tgtKeywords).size.toDouble
-  }
-
   private def getResourceAsStream(name: String): InputStream =
     getClass.getClassLoader.getResourceAsStream(name)
 
-
-  val wordFrequency = loadWordFrequencies("")
+  val wordFrequency = loadWordFrequencies("word-frequencies.txt")
   val minFreq = wordFrequency.values.min
+
   def overlap(text: Set[String], hypothesis: Set[String]) =
     text.intersect(hypothesis).size
 
@@ -72,7 +63,6 @@ object SimilarityMeasures {
     wrapper.CachedEntails
   }
 
-
   def wordnetEntailment(text: String, hypothesis: String) =
     wordnetEntailmentService(text, hypothesis) map { _.confidence } getOrElse 0d
 
@@ -87,7 +77,5 @@ object SimilarityMeasures {
 
   //Ellie
   def ppdbEntailment(text: String, hypothesis: String) = ???
-
-
 
 }
