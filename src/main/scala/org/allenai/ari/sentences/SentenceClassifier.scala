@@ -18,6 +18,13 @@ import weka.core.converters.ConverterUtils.DataSource
 import scala.io.Source
 import scala.collection.immutable.IndexedSeq
 
+/** *************************************
+  * AUTHORS: Ashish, Niranjan
+  *
+  * EXAMPLE: run-main org.allenai.ari.sentences.SentenceClassifier RotationForest src/main/resources/labeled-data-train.tsv questions/manual-12063 output
+  *
+  */
+
 object SentenceClassifier extends App with Logging {
   logger.info("Parsing commandline arguments")
   assert(args.size == 4, " classifier trainingfile inputdir outputdir needed")
@@ -48,9 +55,9 @@ object SentenceClassifier extends App with Logging {
 
   def toInstances(file: File, arffDir: String): (Instances, Seq[QuestionSentence]) = {
     logger.info(s"Extracting test question+sentences from $file")
+    //val questionSentences: List[QuestionSentence] = QuestionSentence.fromTrainingFile(file.getAbsolutePath, 0)
     //val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSids(file.getAbsolutePath, 0)
-    val questionSentences: List[QuestionSentence] = QuestionSentence.fromTrainingFile(file.getAbsolutePath, 0)
-    //val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSidsLASTMINUTE(file.getAbsolutePath, 0)
+    val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSidsB(file.getAbsolutePath, 0)
     val featureMap: Map[QuestionSentence, Seq[Double]] = (questionSentences map {
       questionSentence =>
         (questionSentence, features(questionSentence))
@@ -102,17 +109,25 @@ object SentenceClassifier extends App with Logging {
               }
               // compute average precision if the data is annotated
               var numPositiveExamples: Int = 0
-              var averagePrecision: Double = 0d
+              var numAnnotatedExamples: Int = 0
+              var averagePrecisionAnnotated: Double = 0d // average precision over annotated examples
+              var averagePrecisionAll: Double = 0d // average precision over all examples
               (0 to testQuestionSentencesWithClassProb.size - 1) map {
                 i =>
-                  if (testQuestionSentencesWithClassProb(i)._1.annotationOpt.getOrElse(-1) > 0) { // good = 1 or 2
+                  val annotation = testQuestionSentencesWithClassProb(i)._1.annotationOpt.getOrElse(-1)
+                  if (annotation >= 0)
+                    numAnnotatedExamples += 1
+                  if (annotation > 0) { // good = 1 or 2
                     numPositiveExamples += 1
-                    averagePrecision += (numPositiveExamples.toDouble / (i + 1) * 100d)
+                    averagePrecisionAnnotated += (numPositiveExamples.toDouble / numAnnotatedExamples * 100d)
+                    averagePrecisionAll += (numPositiveExamples.toDouble / (i + 1) * 100d)
                   }
               }
-              averagePrecision /= numPositiveExamples
-              logger.info(s"${numPositiveExamples} positive examples out of ${testQuestionSentencesWithClassProb.size} test instances")
-              logger.info(f"AVERAGE PRECISION = ${averagePrecision}%.4f")
+              averagePrecisionAnnotated /= numPositiveExamples
+              averagePrecisionAll /= numPositiveExamples
+              logger.info(s"${numPositiveExamples} positive examples out of ${numAnnotatedExamples} annotated test instances out of a total of ${testQuestionSentencesWithClassProb.size}")
+              logger.info(f"AVERAGE PRECISION (annotated examples) = ${averagePrecisionAnnotated}%.4f")
+              logger.info(f"AVERAGE PRECISION (all examples) = ${averagePrecisionAll}%.4f")
             case _ =>
               logger.info("")
           }

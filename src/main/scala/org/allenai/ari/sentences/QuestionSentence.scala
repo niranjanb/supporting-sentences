@@ -36,12 +36,13 @@ object QuestionSentence {
     }.toList
   }
 
-  def fromFileWithSidsLASTMINUTE(file: String, headerLinesToDrop: Int) = {
-    Source.fromFile(file).getLines().drop(headerLinesToDrop).take(20).map {
+  def fromFileWithSidsB(file: String, headerLinesToDrop: Int) = {
+    Source.fromFile(file).getLines().drop(headerLinesToDrop).map {
+      //Source.fromFile(file).getLines().drop(headerLinesToDrop).take(40).map {
       line =>
         val splits = line.split("\t")
-        //println(splits.mkString("\n"))
-        QuestionSentence(splits(0), splits(1), splits(2), None, splits(9), splits(4), Some(splits(3).toInt))
+        val annotationOpt = if (!splits(3).isEmpty()) Some(splits(3).toInt) else None
+        QuestionSentence(splits(0), splits(1), splits(2), Some(splits(8)), splits(9), splits(4), annotationOpt)
     }.toList
   }
 }
