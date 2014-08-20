@@ -21,8 +21,9 @@ object SimilarityMeasures {
     getClass.getClassLoader.getResourceAsStream(name)
 
 
-  val wordFrequency = loadWordFrequencies("")
-  val minFreq = wordFrequency.values.min
+ /** val wordFrequency = loadWordFrequencies("")
+  val minFreq = wordFrequency.values.min*/
+
   def overlap(text: Set[String], hypothesis: Set[String]) =
     text.intersect(hypothesis).size
 
@@ -34,7 +35,7 @@ object SimilarityMeasures {
   def hypothesisCoverage(text: Set[String], hypothesis: Set[String]): Double =
     overlap(text, hypothesis) / hypothesis.size.toDouble
 
-  private def frequencyWeight(token: String): Double = {
+  /**private def frequencyWeight(token: String): Double = {
     // constants were hand-tuned by Peter
     val wordWeightK: Double = 10.0
     val normalizationConstant: Double = 2.3978953
@@ -64,7 +65,7 @@ object SimilarityMeasures {
     val hypWeights = hypothesis.map { frequencyWeight(_) }
     val overlapWeights = text.intersect(hypothesis) map { frequencyWeight(_) }
     overlapWeights.sum / hypWeights.sum
-  }
+  }    */
 
   val wordnetEntailmentService: EntailmentService = {
     val wordnetEntailmentUrl = "http://entailment.dev.allenai.org:8191/api/entails"

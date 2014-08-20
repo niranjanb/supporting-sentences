@@ -2,6 +2,7 @@ package org.allenai.ari.sentences
 
 import java.io.{PrintWriter, File}
 import org.allenai.common.Logging
+import scala.io.Source
 
 object SentenceScorer extends App with Logging {
 
@@ -9,7 +10,17 @@ object SentenceScorer extends App with Logging {
     new File(args(0)).listFiles().filter(_.getName.endsWith(".txt"))
   }
 
-  files.drop(50).take(50).foreach {
+  val trueQuestions = Set()
+  val trueQuestionIdsFile = "/Users/niranjan/work/projects/github/niranjanb/supporting-sentences/trueQuestionIds.txt"
+  val validFiles =
+    Source.fromFile(trueQuestionIdsFile).getLines().map {
+      line => s"$line.txt"
+    }.toSet
+
+  files.filter {file => validFiles.contains(file.getName)}
+    .toSeq.sortBy( f => f.getName.replaceAll("""\.txt""", "").toInt )
+    .drop(100)
+    .foreach {
     file =>
       try {
         logger.info(s"Processing ${file.getName()}")
