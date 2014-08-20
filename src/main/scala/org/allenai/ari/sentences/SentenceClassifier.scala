@@ -1,12 +1,12 @@
 package org.allenai.ari.sentences
 
-import java.io.{File, PrintWriter}
+import java.io.{ File, PrintWriter }
 import java.util.Random
 
-import org.allenai.ari.solvers.inference.matching.{EntailmentService, EntailmentWrapper}
+import org.allenai.ari.solvers.inference.matching.{ EntailmentService, EntailmentWrapper }
 import org.allenai.ari.solvers.utils.Tokenizer
 import org.allenai.common.Logging
-import weka.classifiers.{Classifier, Evaluation}
+import weka.classifiers.{ Classifier, Evaluation }
 import weka.classifiers.bayes._
 import weka.classifiers.functions._
 import weka.classifiers.meta._
@@ -18,6 +18,12 @@ import weka.core.converters.ConverterUtils.DataSource
 import scala.io.Source
 import scala.collection.immutable.IndexedSeq
 
+/** *************************************
+  * AUTHORS: Ashish, Niranjan
+  *
+  * EXAMPLE: run-main org.allenai.ari.sentences.SentenceClassifier RotationForest src/main/resources/labeled-data-train.tsv questions/manual-12063 output
+  *
+  */
 
 object SentenceClassifier extends App with Logging {
   logger.info("Parsing commandline arguments")
@@ -31,13 +37,8 @@ object SentenceClassifier extends App with Logging {
 
   val configEntailmentUrl = "http://entailment.dev.allenai.org:8191/api/entails"
 
-  val teService: EntailmentService = {
-    val wrapper = new EntailmentWrapper(configEntailmentUrl)
-    wrapper.PredefinedEntails orElse wrapper.CachedEntails
-  }
-  
   logger.info(s"Extracting training question+sentences from $configTrainingFile")
-  val questionSentencesTrain = QuestionSentence.fromTrainingFile(configTrainingFile)
+  val questionSentencesTrain = QuestionSentence.fromTrainingFile(configTrainingFile, 1)
   logger.info("Computing training sentence features")
   val featureMapTrain = questionSentencesTrain.map {
     questionSentence => (questionSentence, features(questionSentence))
@@ -45,26 +46,18 @@ object SentenceClassifier extends App with Logging {
 
   logger.info(s"Writing training ARFF to file $configArffTrain")
   toARFF(questionSentencesTrain, featureMapTrain, configArffTrain)
-  
+
   val classifier: Classifier = buildClassifier(configClassifierName, configArffTrain)
 
   classify(classifier, inputDirectory, outputDirectory)
 
   System.exit(0)
 
-
-
-  def classify(classifier: Classifier,
-               testInstances: Instances): Seq[Double] = {
-    logger.info(s"WEKA: extracting class probability distribution for each test instance")
-    (0 to testInstances.numInstances-1).map {i =>
-      classifier.distributionForInstance(testInstances.instance(i))(0)
-    }
-  }
-
   def toInstances(file: File, arffDir: String): (Instances, Seq[QuestionSentence]) = {
     logger.info(s"Extracting test question+sentences from $file")
-    val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSids(file.getAbsolutePath)
+    //val questionSentences: List[QuestionSentence] = QuestionSentence.fromTrainingFile(file.getAbsolutePath, 0)
+    //val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSids(file.getAbsolutePath, 0)
+    val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSidsB(file.getAbsolutePath, 0)
     val featureMap: Map[QuestionSentence, Seq[Double]] = (questionSentences map {
       questionSentence =>
         (questionSentence, features(questionSentence))
@@ -72,8 +65,25 @@ object SentenceClassifier extends App with Logging {
     val arffFile = arffDir + File.separator + file.getName + ".arff"
     toARFF(questionSentences, featureMap, arffFile)
     logger.info(s"WEKA: reading test data from $arffFile")
-    val sourceValidation: DataSource = new DataSource(arffFile)
-    (sourceValidation.getDataSet, questionSentences)
+    val sourceTest: DataSource = new DataSource(arffFile)
+    val dataTest: Instances = sourceTest.getDataSet
+    if (dataTest.classIndex == -1)
+      dataTest.setClassIndex(dataTest.numAttributes - 1)
+    (dataTest, questionSentences)
+  }
+
+  def classify(classifier: Classifier, testInstances: Instances): Seq[Double] = {
+    logger.info(s"WEKA: scoring -- computing class probability distribution for ${testInstances.numInstances} test instances")
+    (0 to testInstances.numInstances - 1).map { i =>
+      try {
+        classifier.distributionForInstance(testInstances.instance(i))(0)
+      } catch {
+        case e: Exception =>
+          e.printStackTrace()
+          println(s"Caught exception classifying test instance $i")
+          -1d
+      }
+    }
   }
 
   def classify(classifier: Classifier, inputDirectory: String, outputDirectory: String): Unit = {
@@ -81,46 +91,75 @@ object SentenceClassifier extends App with Logging {
       new File(inputDirectory).listFiles().filter(_.getName.endsWith(".txt"))
     }
 
-    files.take(2).foreach {
+    files.take(1).foreach {
       file =>
         try {
-          logger.info(s"Processing ${file.getName()}")
+          logger.info(s"Processing ${file.getName}")
           val outputFile = outputDirectory + File.separator + file.getName
           val writer = new PrintWriter(outputFile, "utf-8")
           writer.println(QuestionSentence.header)
           toInstances(file, arffDir) match {
             case (testInstances, testQuestionSentences) =>
               val classProbabilities = classify(classifier, testInstances)
-              logger.info(s"Class probabilities ${classProbabilities.size}, instances ${testInstances.numInstances()} , and testQuestionSentences ${testQuestionSentences.size}")
-              (testQuestionSentences zip classProbabilities) foreach {
-                x => writer.println(s"${x._1.toString}\t${x._2}%.4f")
+              logger.info(s"WEKA: Class probabilities ${classProbabilities.size}, instances ${testInstances.numInstances}, and testQuestionSentences ${testQuestionSentences.size}")
+              // sort test instances based on the predicted class probability (high to low)
+              val testQuestionSentencesWithClassProb = (testQuestionSentences zip classProbabilities).sortBy(-_._2)
+              testQuestionSentencesWithClassProb foreach {
+                x => writer.println(f"${x._1.toString}\t${x._2}%.4f")
               }
+              // compute average precision if the data is annotated
+              var numPositiveExamples: Int = 0
+              var numAnnotatedExamples: Int = 0
+              var averagePrecisionAnnotated: Double = 0d // average precision over annotated examples
+              var averagePrecisionAll: Double = 0d // average precision over all examples
+              (0 to testQuestionSentencesWithClassProb.size - 1) map {
+                i =>
+                  val annotation = testQuestionSentencesWithClassProb(i)._1.annotationOpt.getOrElse(-1)
+                  if (annotation >= 0)
+                    numAnnotatedExamples += 1
+                  if (annotation > 0) { // good = 1 or 2
+                    numPositiveExamples += 1
+                    averagePrecisionAnnotated += (numPositiveExamples.toDouble / numAnnotatedExamples * 100d)
+                    averagePrecisionAll += (numPositiveExamples.toDouble / (i + 1) * 100d)
+                  }
+              }
+              averagePrecisionAnnotated /= numPositiveExamples
+              averagePrecisionAll /= numPositiveExamples
+              logger.info(s"${numPositiveExamples} positive examples out of ${numAnnotatedExamples} annotated test instances out of a total of ${testQuestionSentencesWithClassProb.size}")
+              logger.info(f"AVERAGE PRECISION (annotated examples) = ${averagePrecisionAnnotated}%.4f")
+              logger.info(f"AVERAGE PRECISION (all examples) = ${averagePrecisionAll}%.4f")
             case _ =>
               logger.info("")
           }
           writer.close()
         } catch {
-          case e: Exception => println(s"Caught exception processing input file ${file.getName()}")
+          case e: Exception =>
+            e.printStackTrace()
+            println(s"Caught exception processing input file ${file.getName}")
         }
     }
   }
 
-
-
   def features(questionSentence: QuestionSentence) = {
     import SimilarityMeasures._
+
+    val questionKeywordsSet = Tokenizer.toKeywords(questionSentence.question).toSet
+    val sentenceKeywordsSet = Tokenizer.toKeywords(questionSentence.sentence).toSet
+
     var features = Seq[Double]()
     // number of words in the sentence
     features :+= Math.log(questionSentence.sentence.split("\\s+").size.toDouble)
-    // number of question words that overlap with the sentence
-    features :+= ashish_overlap(questionSentence.sentence, questionSentence.question, false)
-    // fraction of question words that overlap with the sentence
-    features :+= ashish_overlap(questionSentence.sentence, questionSentence.question, true)
-    // sentence and question entailment
-    features :+= (teService(questionSentence.sentence, questionSentence.question) map (_.confidence)).getOrElse(0.0)         
-    // sentence and focus entailment
-    features :+= (teService(questionSentence.sentence, questionSentence.focus) map (_.confidence)).getOrElse(0.0)         
-    
+    // hypothesis coverage (absolute): number of question words that overlap with the sentence
+    features :+= overlap(sentenceKeywordsSet, questionKeywordsSet).toDouble
+    // hypothesis coverage (relative): fraction of question words that overlap with the sentence
+    features :+= overlap(sentenceKeywordsSet, questionKeywordsSet).toDouble / questionKeywordsSet.size.toDouble
+    // question to sentence wordnet entailment
+    features :+= wordnetEntailment(questionSentence.sentence, questionSentence.question)
+    // focus to sentence wordnet entailment
+    features :+= wordnetEntailment(questionSentence.sentence, questionSentence.focus)
+    // tfidf between sentence and question
+    features :+= tfIdf(sentenceKeywordsSet, questionKeywordsSet)
+
     features
   }
 
@@ -129,18 +168,19 @@ object SentenceClassifier extends App with Logging {
     // add ARFF header
     writer.println("@relation SENTENCE_SELECTOR")
     writer.println("  @attribute sentence-length       numeric         % length of the sentence")
-    writer.println("  @attribute word-overlap-num      numeric         % number of question words that overlap the sentence")
-    writer.println("  @attribute word-overlap-frac     numeric         % fraction of question words that overlap the sentence")
-    writer.println("  @attribute question-ent-wordnet  numeric         % wordnet entailment for entire question")
-    writer.println("  @attribute focus-ent-wordnet     numeric         % wordnet entailment for focus")
-    writer.println("  @attribute class                 {true,false}    % BINARY LABEL: whether the sentence supports the question")
+    writer.println("  @attribute word-overlap-num      numeric         % hypothesis coverage, absolute")
+    writer.println("  @attribute word-overlap-frac     numeric         % hypothesis coverage, relative")
+    writer.println("  @attribute question-ent-wordnet  numeric         % wordnet entailment for the entire question")
+    writer.println("  @attribute focus-ent-wordnet     numeric         % wordnet entailment for the focus")
+    writer.println("  @attribute tf-idf                numeric         % TF-IDF score for the question")
+    writer.println("  @attribute class                 {1,0}           % BINARY LABEL: whether the sentence supports the question")
     writer.println("")
     // add ARFF data
     writer.println("@data")
     questionSentences.foreach {
       questionSentence =>
         val annotation = questionSentence.annotationOpt match {
-          case Some(label: Int) => label > 0
+          case Some(label: Int) => if (label > 0) "1" else "0"
           case None => "?"
         }
         writer.println(featureMap(questionSentence).mkString(",") + "," + annotation)
@@ -221,7 +261,7 @@ object SentenceClassifier extends App with Logging {
 
         logger.info("WARNING: duplicating the evaluation for now")
         logger.info(s"WEKA: extracting class probability distribution for each validation instance")
-        val classProbabilities = (0 to dataValidation.numInstances-1).map { 
+        val classProbabilities = (0 to dataValidation.numInstances - 1).map {
           i => classifier.distributionForInstance(dataValidation.instance(i))
         }
         Option(classProbabilities)
@@ -234,7 +274,7 @@ object SentenceClassifier extends App with Logging {
     }
     logger.info(eval.toSummaryString("\n======== RESULTS ========\n", false))
     //logger.info(s"\nf-measure = ${eval.fMeasure(0).toString}")
-    
+
     classProbabilitiesOpt
   }
 }

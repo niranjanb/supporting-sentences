@@ -1,6 +1,6 @@
 package org.allenai.ari.sentences
 
-import java.io.{PrintWriter, File}
+import java.io.{ PrintWriter, File }
 import org.allenai.common.Logging
 import scala.io.Source
 
@@ -34,7 +34,7 @@ object SentenceScorer extends App with Logging {
       }
   }
   def scoreSentencesInFile(inputFile: String, writer: PrintWriter) = {
-    val questionSentences = QuestionSentence.fromFileWithSids(inputFile)
+    val questionSentences = QuestionSentence.fromFileWithSids(inputFile, 0)
     import SimilarityMeasures._
     questionSentences.foreach {
       questionSentence =>
