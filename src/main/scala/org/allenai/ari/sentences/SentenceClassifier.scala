@@ -57,7 +57,8 @@ object SentenceClassifier extends App with Logging {
     logger.info(s"Extracting test question+sentences from $file")
     //val questionSentences: List[QuestionSentence] = QuestionSentence.fromTrainingFile(file.getAbsolutePath, 0)
     //val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSids(file.getAbsolutePath, 0)
-    val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSidsB(file.getAbsolutePath, 0)
+    //val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSidsB(file.getAbsolutePath, 0)
+    val questionSentences: List[QuestionSentence] = QuestionSentence.fromFileWithSidsC(file.getAbsolutePath, 1)
     val featureMap: Map[QuestionSentence, Seq[Double]] = (questionSentences map {
       questionSentence =>
         (questionSentence, features(questionSentence))
@@ -91,7 +92,8 @@ object SentenceClassifier extends App with Logging {
       new File(inputDirectory).listFiles().filter(_.getName.endsWith(".txt"))
     }
 
-    files.take(1).foreach {
+    files.foreach {
+      //files.take(1).foreach {
       file =>
         try {
           logger.info(s"Processing ${file.getName}")

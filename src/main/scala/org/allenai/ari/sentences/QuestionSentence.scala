@@ -3,7 +3,7 @@ package org.allenai.ari.sentences
 import scala.io.Source
 
 case class QuestionSentence(qid: String, question: String, focus: String, sid: Option[String], url: String, sentence: String, annotationOpt: Option[Int]) {
-  override def toString() = s"$qid\t$question\t$focus\t$sid\t$url\t$sentence\t${annotationOpt.getOrElse("?")}"
+  override def toString() = s"$qid\t$question\t$focus\t${sid.getOrElse("")}\t$url\t$sentence\t${annotationOpt.getOrElse("?")}"
 }
 
 object QuestionSentence {
@@ -41,8 +41,18 @@ object QuestionSentence {
       //Source.fromFile(file).getLines().drop(headerLinesToDrop).take(40).map {
       line =>
         val splits = line.split("\t")
-        val annotationOpt = if (!splits(3).isEmpty()) Some(splits(3).toInt) else None
+        val annotationOpt = if (!splits(3).isEmpty() && splits(3) != "?") Some(splits(3).toInt) else None
         QuestionSentence(splits(0), splits(1), splits(2), Some(splits(8)), splits(9), splits(4), annotationOpt)
+    }.toList
+  }
+
+  def fromFileWithSidsC(file: String, headerLinesToDrop: Int) = {
+    Source.fromFile(file).getLines().drop(headerLinesToDrop).map {
+      //Source.fromFile(file).getLines().drop(headerLinesToDrop).take(1).map {
+      line =>
+        val splits = line.split("\t")
+        val annotationOpt = if (!splits(6).isEmpty() && splits(6) != "?") Some(splits(6).toInt) else None
+        QuestionSentence(splits(0), splits(1), splits(2), Some(splits(3)), splits(4), splits(5), annotationOpt)
     }.toList
   }
 }
