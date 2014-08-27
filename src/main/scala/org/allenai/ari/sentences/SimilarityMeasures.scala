@@ -11,11 +11,8 @@ object SimilarityMeasures {
   private def getResourceAsStream(name: String): InputStream =
     getClass.getClassLoader.getResourceAsStream(name)
 
-
-
   val wordFrequency = loadWordFrequencies("word-frequencies.txt")
   val minFreq = wordFrequency.values.min
-
 
   def overlap(text: Set[String], hypothesis: Set[String]) =
     text.intersect(hypothesis).size
