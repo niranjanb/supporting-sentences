@@ -1,10 +1,11 @@
 package org.allenai.ari.sentences
 
-import java.io.{ InputStream, File }
-import scala.io.Source
+import java.io.InputStream
+
+import org.allenai.ari.solvers.inference.matching.{EntailmentService, EntailmentWrapper}
 import org.allenai.common.Resource
-import org.allenai.ari.solvers.inference.matching.{ EntailmentWrapper, EntailmentService }
-import org.allenai.ari.solvers.utils.Tokenizer
+
+import scala.io.Source
 
 object SimilarityMeasures {
 
@@ -20,7 +21,7 @@ object SimilarityMeasures {
   def overlap(text: Set[String], hypothesis: Set[String]) =
     text.intersect(hypothesis).size
 
-  import Tokenizer._
+  import org.allenai.ari.solvers.utils.Tokenizer._
   def hypothesisCoverage(text: String, hypothesis: String): Double = {
     hypothesisCoverage(toKeywords(text).toSet, toKeywords(hypothesis).toSet)
   }

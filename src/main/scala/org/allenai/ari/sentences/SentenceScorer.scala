@@ -1,7 +1,9 @@
 package org.allenai.ari.sentences
 
-import java.io.{ PrintWriter, File }
-import org.allenai.common.Logging
+import java.io.{File, PrintWriter}
+
+import org.allenai.common.{Resource, Logging}
+
 import scala.io.Source
 
 object SentenceScorer extends App with Logging {
@@ -12,14 +14,14 @@ object SentenceScorer extends App with Logging {
 
   val trueQuestions = Set()
   val trueQuestionIdsFile = "/Users/niranjan/work/projects/github/niranjanb/supporting-sentences/trueQuestionIds.txt"
-  val validFiles =
-    Source.fromFile(trueQuestionIdsFile).getLines().map {
-      line => s"$line.txt"
-    }.toSet
-
+  val validFiles = Resource.using (Source.fromFile(trueQuestionIdsFile)) {
+    input =>
+      input.getLines().map {
+        line => s"$line.txt"
+      }.toSet
+  }
   files.filter {file => validFiles.contains(file.getName)}
     .toSeq.sortBy( f => f.getName.replaceAll("""\.txt""", "").toInt )
-    .drop(100)
     .foreach {
     file =>
       try {
@@ -35,14 +37,15 @@ object SentenceScorer extends App with Logging {
   }
   def scoreSentencesInFile(inputFile: String, writer: PrintWriter) = {
     val questionSentences = QuestionSentence.fromFileWithSids(inputFile, 0)
-    import SimilarityMeasures._
+    import org.allenai.ari.sentences.SimilarityMeasures._
     questionSentences.foreach {
       questionSentence =>
         val wnScore = wordnetEntailment(questionSentence.sentence, questionSentence.question)
         val overlapScore = hypothesisCoverage(questionSentence.sentence, questionSentence.question)
-        val outputLine = s"${questionSentence.toString}\t$wnScore\t$overlapScore"
-        println(outputLine)
-        writer.println(outputLine)
+        if(overlapScore > 0.0) {
+          val outputLine = s"${questionSentence.toString}\t$wnScore\t$overlapScore"
+          writer.println(outputLine)
+        }
     }
   }
 }
