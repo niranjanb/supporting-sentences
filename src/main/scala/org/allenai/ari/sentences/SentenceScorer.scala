@@ -13,7 +13,7 @@ object SentenceScorer extends App with Logging {
   }
 
   val trueQuestions = Set()
-  val trueQuestionIdsFile = "/Users/niranjan/work/projects/github/niranjanb/supporting-sentences/trueQuestionIds.txt"
+  val trueQuestionIdsFile = "trueQuestionIds.txt"
   val validFiles = Resource.using (Source.fromFile(trueQuestionIdsFile)) {
     input =>
       input.getLines().map {
@@ -23,18 +23,19 @@ object SentenceScorer extends App with Logging {
   files.filter {file => validFiles.contains(file.getName)}
     .toSeq.sortBy( f => f.getName.replaceAll("""\.txt""", "").toInt )
     .foreach {
-    file =>
-      try {
-        logger.info(s"Processing ${file.getName()}")
-        val outputFile = args(1) + File.separator + file.getName
-        val writer = new PrintWriter(outputFile, "utf-8")
-        writer.println(QuestionSentence.header)
-        scoreSentencesInFile(file.getAbsolutePath, writer)
-        writer.close()
-      } catch {
-        case e: Exception => println(s"Caught exception processing input file ${file.getName()}")
-      }
-  }
+      file =>
+        try {
+          logger.info(s"Processing ${file.getName()}")
+          val outputFile = args(1) + File.separator + file.getName
+          val writer = new PrintWriter(outputFile, "utf-8")
+          writer.println(QuestionSentence.header)
+          scoreSentencesInFile(file.getAbsolutePath, writer)
+          writer.close()
+        } catch {
+          case e: Exception => println(s"Caught exception processing input file ${file.getName()}")
+        }
+    }
+
   def scoreSentencesInFile(inputFile: String, writer: PrintWriter) = {
     val questionSentences = QuestionSentence.fromFileWithSids(inputFile, 0)
     import org.allenai.ari.sentences.SimilarityMeasures._

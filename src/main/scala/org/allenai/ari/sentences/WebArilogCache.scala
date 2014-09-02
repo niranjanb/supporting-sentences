@@ -1,6 +1,6 @@
 package org.allenai.ari.sentences
 
-import org.allenai.common.{Logging, Resource}
+import org.allenai.common.{ Logging, Resource }
 import scala.io.Source
 import java.io.PrintWriter
 
@@ -20,11 +20,11 @@ object WebArilogCache extends App with Logging {
       val scores = input.getLines().drop(1).toSeq.flatMap {
         line =>
           line match {
-            case headTailRe (head: String, tail: String) =>
+            case headTailRe(head: String, tail: String) =>
               val score = tail.toDouble
               logger.info(s"head ${head}")
               val questionSentence = QuestionSentence.fromStringWithSidsC(head)
-              if(!questionSentence.sentence.contains('?')) {
+              if (!questionSentence.sentence.contains('?')) {
                 Some(questionSentence -> score)
               } else {
                 logger.info(s"Ignoring question sentence ${questionSentence.sentence}")
@@ -33,9 +33,6 @@ object WebArilogCache extends App with Logging {
             case _ => None
           }
       }
-
-
-
 
       var map = 0.0
       var numQuestions = 0d
@@ -52,7 +49,7 @@ object WebArilogCache extends App with Logging {
             qsp =>
               val questionSentence = qsp._1
               val relevant = questionSentence.annotationOpt.getOrElse(0) > 0
-              if( relevant ) {
+              if (relevant) {
                 numRelevant = numRelevant + 1.0
               }
               if (relevant) { avgPrecision += (numRelevant / rank) } else 0d
@@ -62,23 +59,22 @@ object WebArilogCache extends App with Logging {
                 //val response = client.ermineResponse(questionSentence.sentence)
                 topkWriter.println(qsp._2 + "\t" + questionSentence.annotationOpt.getOrElse(0) + "\t" + questionSentence.sentence)
                 //writer.println(response)
-              }catch{
-                case e:Exception =>
+              } catch {
+                case e: Exception =>
                   logger.error(s"Caught exception while processing ${questionSentence}")
                   logger.error(s"Exception: ${e.getStackTraceString}")
               }
           }
           val annotated = qsps.exists(qsp => qsp._1.annotationOpt.isDefined)
-          if(annotated) numQuestions = numQuestions + 1d
+          if (annotated) numQuestions = numQuestions + 1d
           if (totalRelevant > 0) {
-            map = map + (avgPrecision/totalRelevant)
+            map = map + (avgPrecision / totalRelevant)
           }
       }
-      logger.info(s"MAP ${map/numQuestions} #questions ${numQuestions} #relevant ${allRelevant}")
+      logger.info(s"MAP ${map / numQuestions} #questions ${numQuestions} #relevant ${allRelevant}")
   }
 
   topkWriter.close
   //writer.close()
-
 
 }

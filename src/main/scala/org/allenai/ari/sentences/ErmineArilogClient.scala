@@ -1,6 +1,6 @@
 package org.allenai.ari.sentences
 
-import org.allenai.extraction.api.JsonProtocol.{PipelineResponse, PipelineRequest}
+import org.allenai.extraction.api.JsonProtocol.{ PipelineResponse, PipelineRequest }
 import org.allenai.ari.models.AriException
 import org.allenai.common.Logging
 import org.allenai.ari.http._
@@ -21,7 +21,7 @@ object ErmineArilogClient extends App {
   println(s"Ferret output: ${client.ermineResponse(sentence)}")
 
 }
-class ErmineArilogClient (ermineUrl: String) extends Logging {
+class ErmineArilogClient(ermineUrl: String) extends Logging {
 
   def ermineResponse(sentence: String): String = {
     val request = PipelineRequest(Map("text" -> sentence))
