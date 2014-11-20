@@ -44,6 +44,8 @@ object BuildSettings extends Build {
   // tef-extractors (more than just changing the dependency artifact name).
   val openNlpPostagger = "edu.washington.cs.knowitall.nlptools" %% "nlptools-postag-opennlp" % "2.4.4"
 
+  val sentencer = "org.allenai.nlptools" %% "nlptools-sentence-opennlp" % "2.5.1-SNAPSHOT"
+
   // Since we depend on uw-nlptools 2.4.4, exclude allenai-nlptools via textualEntailment because
   // there's a binary conflict at runtime in tef-extractors, and because (luckilly) uw-nlptools
   // works with the textual entailment client.
@@ -56,6 +58,8 @@ object BuildSettings extends Build {
 
   val datastoreCommon = "org.allenai.ari-datastore" %% "interface" % "2014.5.16-0-SNAPSHOT"
   val datastoreClient = "org.allenai.ari-datastore" %% "client" % "2014.5.16-0-SNAPSHOT"
+
+  val jsoup = "org.jsoup" % "jsoup" % "1.8.1"
 
   val globalBuildSettings =
   Revolver.settings ++

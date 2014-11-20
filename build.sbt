@@ -34,4 +34,5 @@ libraryDependencies ++= Seq(
   datastoreCommon,
   datastoreClient,
   logbackClassic,
-  allenAiCommon)
+  allenAiCommon,
+  jsoup, sentencer)
