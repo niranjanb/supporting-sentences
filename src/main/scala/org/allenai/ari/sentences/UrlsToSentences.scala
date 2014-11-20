@@ -60,7 +60,8 @@ object UrlsToSentences extends App with Logging {
 
   def toText(html: String) = Jsoup.parse(html).text()
 
-  val sentencer = new OpenNlpSentencer()    
+  val sentencer = new OpenNlpSentencer()
+
   def toSentences(text: String) = sentencer.segmentTexts(text)
 
 }
